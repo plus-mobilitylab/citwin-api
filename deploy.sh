@@ -2,9 +2,12 @@
 set -euo pipefail
 
 ENVIRONMENT="${1:-}"
+GIT_REF_OVERRIDE="${2:-}"
+
 if [[ -z "$ENVIRONMENT" ]]; then
   echo "Usage: ./deploy.sh [environment]"
   echo "Example: ./deploy.sh prod"
+  echo "Example: ./deploy.sh prod v1.0.0"
   exit 1
 fi
 
@@ -16,13 +19,14 @@ set -a
 source "$ENV_FILE"
 set +a
 
+GIT_REF="${GIT_REF_OVERRIDE:-$GIT_REF}"
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
 
 REQUIRED=(
   PROJECT_NAME
   SSH_USER SSH_HOST SSH_PORT
   DEPLOY_USER DEPLOY_PATH
-  GIT_REPO_URL GIT_BRANCH
+  GIT_REPO_URL GIT_REF
   API_DOMAIN API_PORT API_ROOT_PATH
 )
 
@@ -45,17 +49,17 @@ remote_deploy() {
 remote_deploy <<EOF
 set -euo pipefail
 if [[ ! -d "$DEPLOY_PATH/.git" ]]; then
-  echo "– cloning branch: $GIT_BRANCH"
+  echo "– cloning repo"
   mkdir -p "$DEPLOY_PATH"
-  git clone -b "$GIT_BRANCH" "$GIT_REPO_URL" "$DEPLOY_PATH"
-else
-  echo "– pulling branch: $GIT_BRANCH"
-  cd "$DEPLOY_PATH"
-  git fetch origin "$GIT_BRANCH"
-  git checkout -f "$GIT_BRANCH"
-  git reset --hard "origin/$GIT_BRANCH"
-  git clean -fd
+  git clone "$GIT_REPO_URL" "$DEPLOY_PATH"
 fi
+cd "$DEPLOY_PATH"
+echo "– fetching updates"
+git fetch --all --tags
+echo "– checking out ref: $GIT_REF"
+git checkout -f "$GIT_REF"
+git reset --hard "$GIT_REF"
+git clean -fd
 EOF
 
 # ----------------------------------------------------------------------------------------------------------------------

@@ -109,6 +109,12 @@ This starts:
 By default, the API is reachable at:
 - `http://localhost:8000`
 
+### 3) Stop services
+
+```bash
+docker compose down --volumes
+```
+
 ---
 
 ## Production notes
@@ -140,16 +146,30 @@ The repo contains:
 - `undeploy.sh`
 - `.env.deploy.example`
 
-These appear designed to:
-- clone/pull the repo on a remote host,
-- configure environment,
-- run the API (commonly via Docker) under a deployment path.
+Usage:
 
-Check the scripts before use and adapt to your infrastructure (systemd, Docker Compose, Kubernetes, etc.).
+```bash
+sh deploy.sh <environment> [git-ref]
+```
+
+```bash
+sh undeploy.sh <environment>
+```
+
+`deploy.sh` clones/pulls the repo on a remote host, configures nginx, and runs the API via Docker. It checks out the version specified by `GIT_REF` in the env file (`.env.deploy.<environment>`). An optional second argument overrides it for that deploy:
+
+```bash
+sh deploy.sh prod         # uses GIT_REF from .env.deploy.prod
+sh deploy.sh prod v1.1.0  # deploys tag v1.1.0
+sh deploy.sh prod main    # deploys latest main
+```
+
+Check the scripts before use and adapt to your infrastructure.
 
 ---
 
 ## Troubleshooting
 
 ### GDAL / GeoPandas issues
+
 If running without Docker, you may need system packages for GDAL that match the Python wheels/headers. Using Docker avoids most of these issues.
