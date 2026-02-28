@@ -1,66 +1,72 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-ENVIRONMENT=$1
+ENVIRONMENT="${1:-}"
 if [[ -z "$ENVIRONMENT" ]]; then
   echo "Usage: ./deploy.sh [environment]"
   echo "Example: ./deploy.sh prod"
   exit 1
 fi
 
-# loading environment file
-ENV_FILE=".env.deploy.$ENVIRONMENT"
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "– environment file $ENV_FILE not found"
-  exit 1
-fi
+ENV_FILE=".env.deploy.${ENVIRONMENT}"
+[[ -f "$ENV_FILE" ]] || { echo "– environment file $ENV_FILE not found"; exit 1; }
 
-# loading environment configuration
 set -a
+# shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
 
+DEPLOY_USER="${DEPLOY_USER:-deploy}"
 
-# ensuring required variables exist
-REQUIRED=("PROJECT_NAME" "DEPLOY_USER" "DEPLOY_HOST" "DEPLOY_PORT" "DEPLOY_PATH" "GIT_REPO_URL" "GIT_BRANCH" "API_DOMAIN" "API_PORT" "API_ROOT_PATH")
+REQUIRED=(
+  PROJECT_NAME
+  SSH_USER SSH_HOST SSH_PORT
+  DEPLOY_USER DEPLOY_PATH
+  GIT_REPO_URL GIT_BRANCH
+  API_DOMAIN API_PORT API_ROOT_PATH
+)
+
 for VAR in "${REQUIRED[@]}"; do
-  if [[ -z "${!VAR}" ]]; then
-    echo "– missing required variable: $VAR"
-    exit 1
-  fi
+  [[ -n "${!VAR:-}" ]] || { echo "– missing required variable: $VAR"; exit 1; }
 done
 
-echo "□ deploying $PROJECT_NAME to $DEPLOY_HOST using $ENV_FILE"
+echo "□ deploying $PROJECT_NAME to $SSH_HOST using $ENV_FILE"
 
-ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash << EOF
-set -e
+ssh_base=(ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST")
 
-# git
-if [ ! -d "$DEPLOY_PATH/.git" ]; then
+remote_deploy() {
+  "${ssh_base[@]}" "sudo -u '$DEPLOY_USER' -H /bin/bash -lc '/bin/bash -se'" </dev/stdin
+}
+
+# ----------------------------------------------------------------------------------------------------------------------
+# git / project directory
+# ----------------------------------------------------------------------------------------------------------------------
+
+remote_deploy <<EOF
+set -euo pipefail
+if [[ ! -d "$DEPLOY_PATH/.git" ]]; then
   echo "– cloning branch: $GIT_BRANCH"
+  mkdir -p "$DEPLOY_PATH"
   git clone -b "$GIT_BRANCH" "$GIT_REPO_URL" "$DEPLOY_PATH"
 else
   echo "– pulling branch: $GIT_BRANCH"
   cd "$DEPLOY_PATH"
   git fetch origin "$GIT_BRANCH"
-  git checkout "$GIT_BRANCH"
-  git reset --hard origin/"$GIT_BRANCH"
+  git checkout -f "$GIT_BRANCH"
+  git reset --hard "origin/$GIT_BRANCH"
   git clean -fd
 fi
 EOF
 
-echo "– uploading env for docker"
-scp -P "$DEPLOY_PORT" .env.docker "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/.env.docker"
-
-ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash << EOF
-set -e
-
+# ----------------------------------------------------------------------------------------------------------------------
 # nginx
-echo "– configuring nginx: $PROJECT_NAME" on $API_DOMAIN
-sudo mkdir -p /etc/nginx/apps/$API_DOMAIN
-EOF
+# ----------------------------------------------------------------------------------------------------------------------
 
-ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "sudo tee /etc/nginx/apps/$API_DOMAIN/$PROJECT_NAME.conf >/dev/null" << EOF
+remote_deploy <<EOF
+set -euo pipefail
+echo "– configuring nginx: $PROJECT_NAME on $API_DOMAIN"
+sudo mkdir -p "/etc/nginx/apps/$API_DOMAIN"
+sudo tee "/etc/nginx/apps/$API_DOMAIN/$PROJECT_NAME.conf" >/dev/null <<'NGINX'
 location $API_ROOT_PATH/ {
     proxy_pass http://127.0.0.1:$API_PORT/;
     proxy_redirect off;
@@ -69,24 +75,36 @@ location $API_ROOT_PATH/ {
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
 }
+NGINX
+sudo nginx -t
+sudo systemctl reload nginx
 EOF
 
-ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash << EOF
-if sudo nginx -t; then
-  sudo systemctl reload nginx
-else
-  echo "- nginx config test failed, not reloading"
-  exit 1
-fi
-
+# ----------------------------------------------------------------------------------------------------------------------
 # docker
+# ----------------------------------------------------------------------------------------------------------------------
+
+REMOTE_TMP="/tmp/.env.docker.$$.$RANDOM"
+
+echo "– uploading env"
+scp -P "$SSH_PORT" .env.docker "$SSH_USER@$SSH_HOST:$REMOTE_TMP"
+
+remote_deploy <<EOF
+set -euo pipefail
+install -m 600 "$REMOTE_TMP" "$DEPLOY_PATH/.env.docker"
+EOF
+
+"${ssh_base[@]}" rm -f -- "$REMOTE_TMP"
+
+remote_deploy <<EOF
+set -euo pipefail
 echo "– starting docker containers: $DEPLOY_PATH"
 cd "$DEPLOY_PATH"
 export PROJECT_NAME="$PROJECT_NAME"
 export API_PORT="$API_PORT"
-export API_ROOT_PATH=$API_ROOT_PATH
+export API_ROOT_PATH="$API_ROOT_PATH"
 docker compose down --volumes || true
 docker compose up -d --build
 EOF
 
-echo "■ deploy: $PROJECT_NAME to $DEPLOY_HOST using $ENV_FILE"
+echo "■ deploy: $PROJECT_NAME to $SSH_HOST using $ENV_FILE"
