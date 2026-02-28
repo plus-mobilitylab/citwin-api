@@ -68,11 +68,11 @@ sh undeploy.sh dev
 Local (`.env.local`)
 
 ```bash
-python tests/test_run.py
+python tests/test_run_pipeline_access.py
 ```
 
 ```bash
-python tests/test_run.py --upload-netascore
+python tests/test_run_pipeline_access.py --upload-netascore
 ```
 
 ---
@@ -82,39 +82,39 @@ python tests/test_run.py --upload-netascore
 Local (`.env.local`)
 
 ```bash
-python test/test_api.py --base-url http://localhost:8000 --no-download
+python tests/test_api_pipeline_access.py --base-url http://localhost:8000 --no-download
 ```
 
 ```bash
-python test/test_api.py --base-url http://localhost:8000 --no-download --upload-netascore
+python tests/test_api_pipeline_access.py --base-url http://localhost:8000 --no-download --upload-netascore
 ```
 
 Remote – Production (`.env.local`)
 
 ```bash
-python test/test_api.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-prod --no-download
+python tests/test_api_pipeline_access.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-prod --no-download
 ```
 
 ```bash
-python test/test_api.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-prod --no-download --upload-netascore
+python tests/test_api_pipeline_access.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-prod --no-download --upload-netascore
 ```
 
 Remote – Staging (`.env.local`)
 
 ```bash
-python test/test_api.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-staging --no-download
+python tests/test_api_pipeline_access.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-staging --no-download
 ```
 
 ```bash
-python test/test_api.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-staging --no-download --upload-netascore
+python tests/test_api_pipeline_access.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-staging --no-download --upload-netascore
 ```
 
 Remote – Development (`.env.local`)
 
 ```bash
-python test/test_api.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-dev --no-download
+python tests/test_api_pipeline_access.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-dev --no-download
 ```
 
 ```bash
-python test/test_api.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-dev --no-download --upload-netascore
+python tests/test_api_pipeline_access.py --base-url http://zgis228.geo.sbg.ac.at/api/citwin-dev --no-download --upload-netascore
 ```

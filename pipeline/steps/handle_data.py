@@ -1,10 +1,10 @@
 import geopandas as gpd
 
 
-def calculate_distance(speed_kmh, time_minutes) -> int:
-    time_hours = time_minutes / 60
-    distance_meters = speed_kmh * time_hours * 1000
-    return int(round(distance_meters))
+def calculate_distance(speed_kmh, time_min) -> int:
+    time_h = time_min / 60
+    distance_m = speed_kmh * time_h * 1000
+    return int(round(distance_m))
 
 
 def ensure_wgs84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:

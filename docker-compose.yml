@@ -19,7 +19,7 @@ services:
     tty: true
 
   netascore-db:
-    image: postgis/postgis:17-3.4
+    image: postgis/postgis:17-3.5
     restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres

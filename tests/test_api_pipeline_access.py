@@ -34,7 +34,7 @@ def main():
         "od_clusters_a": open(DATA_DIR / "b_klynger.gpkg", "rb"),
         "od_clusters_b": open(DATA_DIR / "a_klynger.gpkg", "rb"),
         "od_table": open(DATA_DIR / "Data_2023_0099_Tabel_1.csv", "rb"),
-        "stops": open(DATA_DIR / "dynlayer.gpkg", "rb"),
+        "pois": open(DATA_DIR / "dynlayer_skodstrup.gpkg", "rb"),
     }
 
     if UPLOAD_NETASCORE:
@@ -48,14 +48,19 @@ def main():
         "od_table_a_id_field": "Bopael_klynge_id",
         "od_table_b_id_field": "Arbejssted_klynge_id",
         "od_table_trips_field": "Antal",
-        "stops_id_field": "stopnummer",
+        "pois_id_field": "stopnummer",
+        "mode": "bike",
         "output_format": "GPKG",
+        "seed": 0,
     }
 
-    response = requests.post(f"{BASE_URL}/jobs", headers=headers, files=files, data=data)
+    response = requests.post(f"{BASE_URL}/jobs/access", headers=headers, files=files, data=data)
     response.raise_for_status()
-    job_id = response.json().get("job_id")
+    result = response.json()
+    job_id = result.get("job_id")
+    websocket_url = result.get("websocket_url")
     print(f"□ job_id: {job_id}")
+    print(f"– websocket_url: {websocket_url}")
 
     # get job status
     while True:

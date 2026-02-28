@@ -19,6 +19,7 @@ dependencies:
   - pyyaml
   - scikit-learn
   - shapely
+  - tqdm
 
   # netascore
   - gdal=3.10.3

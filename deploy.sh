@@ -22,7 +22,7 @@ set +a
 
 
 # ensuring required variables exist
-REQUIRED=("PROJECT_NAME" "DEPLOY_USER" "DEPLOY_HOST" "DEPLOY_PORT" "DEPLOY_PATH" "GIT_REPO_URL" "GIT_BRANCH" "API_PORT" "API_ROOT_PATH")
+REQUIRED=("PROJECT_NAME" "DEPLOY_USER" "DEPLOY_HOST" "DEPLOY_PORT" "DEPLOY_PATH" "GIT_REPO_URL" "GIT_BRANCH" "API_DOMAIN" "API_PORT" "API_ROOT_PATH")
 for VAR in "${REQUIRED[@]}"; do
   if [[ -z "${!VAR}" ]]; then
     echo "– missing required variable: $VAR"
@@ -46,7 +46,6 @@ else
   git checkout "$GIT_BRANCH"
   git reset --hard origin/"$GIT_BRANCH"
   git clean -fd
-  git pull --tags
 fi
 EOF
 
@@ -57,13 +56,13 @@ ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" bash << EOF
 set -e
 
 # nginx
-echo "– configuring nginx: $PROJECT_NAME"
-sudo mkdir -p /etc/nginx/conf.d/apps-enabled
+echo "– configuring nginx: $PROJECT_NAME" on $API_DOMAIN
+sudo mkdir -p /etc/nginx/apps/$API_DOMAIN
 EOF
 
-ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "sudo tee /etc/nginx/conf.d/apps-enabled/$PROJECT_NAME.conf >/dev/null" << EOF
+ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "sudo tee /etc/nginx/apps/$API_DOMAIN/$PROJECT_NAME.conf >/dev/null" << EOF
 location $API_ROOT_PATH/ {
-    proxy_pass http://localhost:$API_PORT/;
+    proxy_pass http://127.0.0.1:$API_PORT/;
     proxy_redirect off;
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;

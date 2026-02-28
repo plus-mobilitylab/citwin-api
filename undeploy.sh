@@ -22,7 +22,7 @@ set +a
 
 
 # ensuring required variables exist
-REQUIRED=("PROJECT_NAME" "DEPLOY_USER" "DEPLOY_PORT" "DEPLOY_HOST" "DEPLOY_PATH" "API_PORT" "API_ROOT_PATH")
+REQUIRED=("PROJECT_NAME" "DEPLOY_USER" "DEPLOY_PORT" "DEPLOY_HOST" "DEPLOY_PATH" "API_DOMAIN" "API_PORT" "API_ROOT_PATH")
 for VAR in "${REQUIRED[@]}"; do
   if [[ -z "${!VAR}" ]]; then
     echo "– missing required variable: $VAR"
@@ -45,12 +45,12 @@ if [ -d "$DEPLOY_PATH" ]; then
   docker compose down --volumes || true
 
   echo "- removing project directory: $DEPLOY_PATH"
-  sudo rm -rf $DEPLOY_PATH
+  rm -rf $DEPLOY_PATH
 fi
 
 # nginx
-echo "- unconfiguring nginx: $PROJECT_NAME"
-sudo rm -f "/etc/nginx/conf.d/apps-enabled/$PROJECT_NAME.conf"
+echo "- unconfiguring nginx: $PROJECT_NAME on $API_DOMAIN"
+sudo rm -f "/etc/nginx/apps/$API_DOMAIN/$PROJECT_NAME.conf"
 if sudo nginx -t; then
   sudo systemctl reload nginx
 else
