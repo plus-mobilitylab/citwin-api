@@ -1,0 +1,14 @@
+.idea/
+
+**/.DS_Store
+**/__pycache__/
+*.pyc
+
+.env
+.env.*
+!.env.*.example
+
+/data/
+/jobs/
+
+NOTES.md
