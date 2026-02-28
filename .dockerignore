@@ -7,10 +7,9 @@
 
 .env
 .env.*
-environment.yml
 
-/data/
-/jobs/
+jobs/
+tests/
 
 *.ps1
 *.bat

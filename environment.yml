@@ -1,23 +1,24 @@
 name: citwin-api
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.13.7
 
   # api
   - fastapi
+  - pydantic
+  - pydantic-settings
+  - python-multipart
+  - uvicorn
+
+  # pipeline
   - geopandas
   - networkx
   - numpy
   - pandas
-  - pydantic
-  - pydantic-settings
-  - python-multipart
   - pyyaml
   - scikit-learn
   - shapely
-  - uvicorn
 
   # netascore
   - gdal=3.10.3
