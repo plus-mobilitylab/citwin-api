@@ -21,20 +21,20 @@ from pipeline.steps.generate_netascore import update_settings, run_netascore
 from pipeline.steps.handle_data import calculate_distance, ensure_wgs84, get_utm_srid, compute_bbox_str, filter_gdf
 from pipeline.steps.snap_points import build_strtree, snap_with_strtree
 
-MODE_DEFAULTS = {
+TRAVEL_MODE_DEFAULTS = {
     "bike": {
         "travel_time_min": 15.0,
         "travel_speed_kmh": 12.0,
         "detour_threshold": 1.5,
         "index_threshold": 0.5,
-        "length_minimum": 50.0,
+        "length_minimum": 0.0,
     },
     "walk": {
         "travel_time_min": 15.0,
         "travel_speed_kmh": 5.0,
         "detour_threshold": 1.5,
         "index_threshold": 0.35,
-        "length_minimum": 50.0,
+        "length_minimum": 0.0,
     },
 }
 
@@ -108,7 +108,7 @@ class PipelineAccessContext:
     job_dir: Path
     output_format: str
 
-    mode: str
+    travel_mode: str
     travel_time_min: float
     travel_speed_kmh: float
     distance_threshold_m: float
@@ -319,12 +319,12 @@ class BuildGraphsStep(PipelineStep):
         G = build_graph(ctx.netascore_edges_gdf, ctx.netascore_nodes_gdf)
         G = keep_largest_component(G)
 
-        logger.info(f"- make base subgraph ({ctx.mode})")
-        ctx.G_base = make_subgraph(G, ctx.mode, walk_segments_for_bike=True)
+        logger.info(f"- make base subgraph ({ctx.travel_mode})")
+        ctx.G_base = make_subgraph(G, ctx.travel_mode, walk_segments_for_bike=False)
         ctx.G_base = remove_small_components(ctx.G_base, 10)
 
-        logger.info(f"- make quality subgraph ({ctx.mode}) with index >= {ctx.index_threshold} or length <= {ctx.length_minimum} m")
-        ctx.G_quality = make_subgraph(G, ctx.mode, ctx.index_threshold, ctx.length_minimum, walk_segments_for_bike=True)
+        logger.info(f"- make quality subgraph ({ctx.travel_mode}) with index >= {ctx.index_threshold} or length <= {ctx.length_minimum} m")
+        ctx.G_quality = make_subgraph(G, ctx.travel_mode, ctx.index_threshold, ctx.length_minimum, walk_segments_for_bike=False)
         ctx.G_quality = remove_small_components(ctx.G_quality, 10)
 
 
@@ -369,7 +369,7 @@ class EvaluatePOIsStep(PipelineStep):
     def run(self, ctx):
         ctx.edges_base_gdf, ctx.edges_quality_gdf, ctx.routes_base_gdf, ctx.routes_quality_gdf, ctx.pois_gdf, ctx.residents_gdf = evaluate_access(
             ctx.netascore_edges_gdf, ctx.pois_gdf, ctx.od_points_a_gdf, self.pois_id_field,
-            ctx.G_base, ctx.G_quality, ctx.mode,
+            ctx.G_base, ctx.G_quality, ctx.travel_mode,
             ctx.distance_threshold_m, ctx.detour_threshold
         )
 
@@ -517,7 +517,7 @@ def run_pipeline_access(
         od_table_trips_field: str,
         pois_id_field: str,
 
-        mode: str,
+        travel_mode: str,
         travel_time_min: Optional[float] = None,
         travel_speed_kmh: Optional[float] = None,
         detour_threshold: Optional[float] = None,
@@ -535,23 +535,23 @@ def run_pipeline_access(
     if output_format not in {"GeoJSON", "GPKG"}:
         raise ValueError(f"Unsupported output format: {output_format}")
 
-    if mode not in MODE_DEFAULTS:
-        raise ValueError(f"Unsupported mode: {mode}")
+    if travel_mode not in TRAVEL_MODE_DEFAULTS:
+        raise ValueError(f"Unsupported travel mode: {travel_mode}")
 
     if travel_time_min is None:
-        travel_time_min = MODE_DEFAULTS[mode]["travel_time_min"]
+        travel_time_min = TRAVEL_MODE_DEFAULTS[travel_mode]["travel_time_min"]
 
     if travel_speed_kmh is None:
-        travel_speed_kmh = MODE_DEFAULTS[mode]["travel_speed_kmh"]
+        travel_speed_kmh = TRAVEL_MODE_DEFAULTS[travel_mode]["travel_speed_kmh"]
 
     if detour_threshold is None:
-        detour_threshold = MODE_DEFAULTS[mode]["detour_threshold"]
+        detour_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["detour_threshold"]
 
     if index_threshold is None:
-        index_threshold = MODE_DEFAULTS[mode]["index_threshold"]
+        index_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["index_threshold"]
 
     if length_minimum is None:
-        length_minimum = MODE_DEFAULTS[mode]["length_minimum"]
+        length_minimum = TRAVEL_MODE_DEFAULTS[travel_mode]["length_minimum"]
 
     if job_dir is None:
         job_id = str(uuid.uuid4())
@@ -571,7 +571,7 @@ def run_pipeline_access(
         job_dir=job_dir,
         output_format=output_format,
 
-        mode=mode,
+        travel_mode=travel_mode,
         travel_time_min=travel_time_min,
         travel_speed_kmh=travel_speed_kmh,
         distance_threshold_m=distance_threshold_m,
@@ -622,7 +622,7 @@ def run_pipeline_access_simple(
         od_clusters_a_count_field: str,
         pois_id_field: str,
 
-        mode: str,
+        travel_mode: str,
         travel_time_min: Optional[float] = None,
         travel_speed_kmh: Optional[float] = None,
         detour_threshold: Optional[float] = None,
@@ -640,23 +640,23 @@ def run_pipeline_access_simple(
     if output_format not in {"GeoJSON", "GPKG"}:
         raise ValueError(f"Unsupported output format: {output_format}")
 
-    if mode not in MODE_DEFAULTS:
-        raise ValueError(f"Unsupported mode: {mode}")
+    if travel_mode not in TRAVEL_MODE_DEFAULTS:
+        raise ValueError(f"Unsupported travel mode: {travel_mode}")
 
     if travel_time_min is None:
-        travel_time_min = MODE_DEFAULTS[mode]["travel_time_min"]
+        travel_time_min = TRAVEL_MODE_DEFAULTS[travel_mode]["travel_time_min"]
 
     if travel_speed_kmh is None:
-        travel_speed_kmh = MODE_DEFAULTS[mode]["travel_speed_kmh"]
+        travel_speed_kmh = TRAVEL_MODE_DEFAULTS[travel_mode]["travel_speed_kmh"]
 
     if detour_threshold is None:
-        detour_threshold = MODE_DEFAULTS[mode]["detour_threshold"]
+        detour_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["detour_threshold"]
 
     if index_threshold is None:
-        index_threshold = MODE_DEFAULTS[mode]["index_threshold"]
+        index_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["index_threshold"]
 
     if length_minimum is None:
-        length_minimum = MODE_DEFAULTS[mode]["length_minimum"]
+        length_minimum = TRAVEL_MODE_DEFAULTS[travel_mode]["length_minimum"]
 
     if job_dir is None:
         job_id = str(uuid.uuid4())
@@ -676,7 +676,7 @@ def run_pipeline_access_simple(
         job_dir=job_dir,
         output_format=output_format,
 
-        mode=mode,
+        travel_mode=travel_mode,
         travel_time_min=travel_time_min,
         travel_speed_kmh=travel_speed_kmh,
         distance_threshold_m=distance_threshold_m,

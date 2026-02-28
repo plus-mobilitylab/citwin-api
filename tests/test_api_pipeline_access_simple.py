@@ -42,7 +42,7 @@ def main():
         "od_clusters_a_id_field": "klynge_id",
         "od_clusters_a_count_field": "Beboere",
         "pois_id_field": "stopnummer",
-        "mode": "bike",
+        "travel_mode": "bike",
         "output_format": "GPKG",
         "seed": 0,
     }

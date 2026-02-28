@@ -49,7 +49,7 @@ def main():
         "od_table_b_id_field": "Arbejssted_klynge_id",
         "od_table_trips_field": "Antal",
         "pois_id_field": "stopnummer",
-        "mode": "bike",
+        "travel_mode": "bike",
         "output_format": "GPKG",
         "seed": 0,
     }
