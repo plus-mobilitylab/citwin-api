@@ -138,7 +138,7 @@ def job_worker():
                     od_table_trips_field=job.get("od_table_trips_field"),
                     pois_id_field=job.get("pois_id_field"),
 
-                    mode=job.get("mode"),
+                    travel_mode=job.get("travel_mode"),
                     travel_time_min=job.get("travel_time_min"),
                     travel_speed_kmh=job.get("travel_speed_kmh"),
                     detour_threshold=job.get("detour_threshold"),
@@ -162,7 +162,7 @@ def job_worker():
                     od_clusters_a_count_field=job.get("od_clusters_a_count_field"),
                     pois_id_field=job.get("pois_id_field"),
 
-                    mode=job.get("mode"),
+                    travel_mode=job.get("travel_mode"),
                     travel_time_min=job.get("travel_time_min"),
                     travel_speed_kmh=job.get("travel_speed_kmh"),
                     detour_threshold=job.get("detour_threshold"),
@@ -273,7 +273,12 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.post("/jobs/access", response_model=JobCreateOut, dependencies=[Depends(verify_api_key)])
+@app.post(
+    "/jobs/access",
+    response_model=JobCreateOut,
+    dependencies=[Depends(verify_api_key)],
+    description="Create new job to evaluate accessibility of POIs for specified travel mode, using origin-destination clusters and trip data."
+)
 async def create_job_access(
         request: Request,
 
@@ -291,12 +296,12 @@ async def create_job_access(
         od_table_trips_field: str = Form(..., description="Trips field in origin-destination table", examples=["Antal"]),
         pois_id_field: str = Form(..., description="ID field for POIs", examples=["stopnummer"]),
 
-        mode: TravelMode = Form(..., description="Travel mode", examples=["bike", "walk"]),
+        travel_mode: TravelMode = Form(..., description="Travel mode", examples=["bike", "walk"]),
         travel_time_min: Optional[float] = Form(None, description="Travel time in minutes; if not set, a mode-specific default is used", examples=[15.0]),
         travel_speed_kmh: Optional[float] = Form(None, description="Travel speed in km/h; if not set, a mode-specific default is used", examples=[12.0, 5.0]),
         detour_threshold: Optional[float] = Form(None, description="Detour threshold; if not set, a mode-specific default is used", examples=[1.5]),
         index_threshold: Optional[float] = Form(None, description="Quality index threshold; if not set, a mode-specific default is used", examples=[0.5, 0.35]),
-        length_minimum: Optional[float] = Form(None, description="Minimum edge length in meters to include regardless of quality index; if not set, a mode-specific default is used", examples=[50.0]),
+        length_minimum: Optional[float] = Form(None, description="Minimum edge length in meters to include regardless of quality index; if not set, a mode-specific default is used", examples=[0.0]),
 
         use_cached_netascore: bool = Form(True, description="Re-use a cached NetAScore file if available"),
         netascore_gpkg: Optional[UploadFile] = File(None, description="Pre-generated NetAScore file"),
@@ -353,7 +358,7 @@ async def create_job_access(
         "od_table_trips_field": od_table_trips_field,
         "pois_id_field": pois_id_field,
 
-        "mode": mode.value if isinstance(mode, Enum) else mode,
+        "travel_mode": travel_mode.value if isinstance(travel_mode, Enum) else travel_mode,
         "travel_time_min": travel_time_min,
         "travel_speed_kmh": travel_speed_kmh,
         "detour_threshold": detour_threshold,
@@ -377,7 +382,12 @@ async def create_job_access(
     return JobCreateOut(job_id=job_id, status=job["status"], websocket_url=websocket_url)
 
 
-@app.post("/jobs/access_simple", response_model=JobCreateOut, dependencies=[Depends(verify_api_key)])
+@app.post(
+    "/jobs/access_simple",
+    response_model=JobCreateOut,
+    dependencies=[Depends(verify_api_key)],
+    description="Create new job to evaluate accessibility of POIs for specified travel mode, using origin clusters only."
+)
 async def create_job_access_simple(
         request: Request,
 
@@ -388,12 +398,12 @@ async def create_job_access_simple(
         od_clusters_a_count_field: str = Form(..., description="Count field for origin clusters", examples=["Beboere"]),
         pois_id_field: str = Form(..., description="ID field for POIs", examples=["stopnummer"]),
 
-        mode: TravelMode = Form(..., description="Travel mode", examples=["bike", "walk"]),
+        travel_mode: TravelMode = Form(..., description="Travel mode", examples=["bike", "walk"]),
         travel_time_min: Optional[float] = Form(None, description="Travel time in minutes; if not set, a mode-specific default is used", examples=[15.0]),
         travel_speed_kmh: Optional[float] = Form(None, description="Travel speed in km/h; if not set, a mode-specific default is used", examples=[12.0, 5.0]),
         detour_threshold: Optional[float] = Form(None, description="Detour threshold; if not set, a mode-specific default is used", examples=[1.5]),
-        index_threshold: Optional[float] = Form(None, description="Quality index threshold; if not set, a mode-specific default is used", examples=[0.5]),
-        length_minimum: Optional[float] = Form(None, description="Minimum edge length in meters to include regardless of quality index; if not set, a mode-specific default is used", examples=[50.0]),
+        index_threshold: Optional[float] = Form(None, description="Quality index threshold; if not set, a mode-specific default is used", examples=[0.5, 0.35]),
+        length_minimum: Optional[float] = Form(None, description="Minimum edge length in meters to include regardless of quality index; if not set, a mode-specific default is used", examples=[0.0]),
 
         use_cached_netascore: bool = Form(True, description="Re-use a cached NetAScore file if available"),
         netascore_gpkg: Optional[UploadFile] = File(None, description="Pre-generated NetAScore file"),
@@ -435,7 +445,7 @@ async def create_job_access_simple(
         "od_clusters_a_count_field": od_clusters_a_count_field,
         "pois_id_field": pois_id_field,
 
-        "mode": mode.value if isinstance(mode, Enum) else mode,
+        "travel_mode": travel_mode.value if isinstance(travel_mode, Enum) else travel_mode,
         "travel_time_min": travel_time_min,
         "travel_speed_kmh": travel_speed_kmh,
         "detour_threshold": detour_threshold,
@@ -459,7 +469,12 @@ async def create_job_access_simple(
     return JobCreateOut(job_id=job_id, status=job["status"], websocket_url=websocket_url)
 
 
-@app.post("/jobs/netascore", response_model=JobCreateOut, dependencies=[Depends(verify_api_key)])
+@app.post(
+    "/jobs/netascore",
+    response_model=JobCreateOut,
+    dependencies=[Depends(verify_api_key)],
+    description="Create new job to generate NetAScore dataset for specified bounding box and target SRID."
+)
 async def create_job_netascore(
         request: Request,
 
