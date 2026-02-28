@@ -1,3 +1,4 @@
+import logging
 import random
 from typing import Dict, Optional
 
@@ -5,6 +6,9 @@ import geopandas as gpd
 import pandas as pd
 from geopandas import GeoDataFrame
 from shapely.geometry import Polygon, MultiPolygon, Point, LineString
+
+
+logger = logging.getLogger(__name__)
 
 
 def random_points_in_polygon(geom: Polygon, count: int, seed: Optional[int] = None) -> list[Point]:
@@ -129,7 +133,7 @@ def disaggregate_table_to_edges(
         # cap by remaining availability in both pools
         k = min(trips, len(pool_a), len(pool_b))
         if k < trips:
-            print(f"reducing trips {trips}->{k} for {cluster_a_id}->{cluster_b_id} due to remaining availability")
+            logger.warning(f"– reducing trips {trips}->{k} for {cluster_a_id}->{cluster_b_id} due to remaining availability")
         if k == 0:
             continue
 
