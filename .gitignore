@@ -8,11 +8,9 @@
 .env.*
 !.env.*.example
 
-jobs/
-tests/data/
-
-*.ps1
-*.bat
+/#/
+/jobs/
+/tests/data/
 
 *.md
 !README.md
