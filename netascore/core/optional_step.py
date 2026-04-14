@@ -9,6 +9,8 @@ from toolbox.dbhelper import PostgresConnection
 
 
 def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0) -> None:
+    if not os.path.exists(path):
+        raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
     subprocess.run(f"raster2pgsql -s {input_srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", 
         shell=True, check=True)
@@ -56,7 +58,19 @@ class NoiseImporter(DbStep):
         h.logBeginTask('import noise')
         if db.handle_conflicting_output_tables(['noise'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='noise', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
+                table='noise_import', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
+        h.logEndTask()
+        # split (subdivide) noise polygons to enable spatial indexing
+        h.logBeginTask('postprocess noise')
+        db.execute("""
+            DROP TABLE IF EXISTS noise;
+            CREATE TABLE noise AS(
+                SELECT row_number() over() as id, ST_Subdivide(n.geom, 200) as geom, noise
+                FROM noise_import n
+            );
+            CREATE INDEX noise_geom_idx ON noise USING gist (geom);
+        """)
+        db.commit()
         h.logEndTask()
 
         # close database connection
@@ -188,6 +202,54 @@ class WaterImporter(DbStep):
         h.log('close database connection')
         db.close()
 
+class ParkingImporter(DbStep):
+    def run_step(self, settings: dict):
+        h.log('importing parking:')
+        h.log(f"using settings: {str(settings)}")
+
+        schema = self.db_settings.entities.data_schema
+        directory = GlobalSettings.data_directory
+
+        # open database connection
+        h.info('open database connection')
+        db = PostgresConnection.from_settings_object(self.db_settings)
+        db.init_extensions_and_schema(schema)
+
+        # import tourism
+        h.logBeginTask('import parking')
+        if db.handle_conflicting_output_tables(['parking'], schema):
+            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema,
+                table='parking', target_srid=GlobalSettings.get_target_srid(), geometry_types=['LINESTRING', 'POLYGON'])
+        h.logEndTask()
+
+        # close database connection
+        h.log('close database connection')
+        db.close()
+
+class SightsImporter(DbStep):
+    def run_step(self, settings: dict):
+        h.log('importing sights:')
+        h.log(f"using settings: {str(settings)}")
+
+        schema = self.db_settings.entities.data_schema
+        directory = GlobalSettings.data_directory
+
+        # open database connection
+        h.info('open database connection')
+        db = PostgresConnection.from_settings_object(self.db_settings)
+        db.init_extensions_and_schema(schema)
+
+        # import sights
+        h.logBeginTask('import sights')
+        if db.handle_conflicting_output_tables(['sights'], schema):
+            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema,
+                table='sights', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'POLYGON'])
+        h.logEndTask()
+
+        # close database connection
+        h.log('close database connection')
+        db.close()
+
 
 def create_optional_importer(db_settings: DbSettings, import_type: str):
     if import_type == 'dem':
@@ -206,6 +268,10 @@ def create_optional_importer(db_settings: DbSettings, import_type: str):
         return GreennessImporter(db_settings)
     if import_type == 'water':
         return WaterImporter(db_settings)
+    if import_type == 'parking':
+        return ParkingImporter(db_settings)
+    if import_type == 'sights':
+        return SightsImporter(db_settings)
     raise NotImplementedError(f"import type '{import_type}' not implemented")
 
 

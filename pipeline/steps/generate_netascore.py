@@ -28,6 +28,8 @@ def update_settings(settings_input_path: Path, settings_output_path: Path, targe
 
     netascore_settings["index"]["compute_explanation"] = False
 
+    netascore_settings["profiles"] = [p for p in netascore_settings["profiles"] if p.get("profile_name") in {"bike", "walk"}]
+
     settings_output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(settings_output_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(netascore_settings, f, sort_keys=False, allow_unicode=True)

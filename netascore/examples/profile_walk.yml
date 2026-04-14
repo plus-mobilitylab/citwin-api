@@ -21,6 +21,7 @@ weights:
   buildings: 0.1
   greenness: 0.3
   water: 0.4
+  sights: NULL
   noise: 0.3
 
 
@@ -52,9 +53,11 @@ indicator_mapping:
       "pedestrian_area": 1
       "pedestrian_way": 1
       "mixed_way": 0.85
+      "mixed_way_non_designated": 0.85
       "stairs": 0.7
       "sidewalk": 0.5
       "no": 0
+      "no_separate": 0
 
   - indicator: road_category
     mapping:
@@ -90,17 +93,16 @@ indicator_mapping:
 
   - indicator: parking
     mapping:
-      "yes": 0
-      "no": 1
-      True: 0
-      False: 1
+      allowed: 0
+      implicit: 0.5
+      forbidden: 1
 
   - indicator: pavement
     mapping:
-      "asphalt": 1
-      "gravel": 0.75
-      "soft": 0.4
-      "cobble": 0
+      asphalt: 1
+      gravel: 0.75
+      soft: 0.4
+      cobble: 0
   
   - indicator: width
     classes:
@@ -140,10 +142,10 @@ indicator_mapping:
       e0:
         indicator: road_category
         mapping:
-          "primary": 0
-          "secondary": 0
+          primary: 0
+          secondary: 0
           NULL: 0
-          "residential": 0.5
+          residential: 0.5
           _default_: 1
       g0: 1
   
@@ -165,9 +167,14 @@ indicator_mapping:
       e0: 0
   
   - indicator: water
-    mapping:
-      True: 1
-      False: 0
+    classes:
+      g0: 1
+      e0: 0
+
+  - indicator: sights
+    classes:
+      g0: 1
+      e0: 0
 
   - indicator: noise
     classes:
@@ -175,4 +182,3 @@ indicator_mapping:
       g55: 0.6
       g10: 0.8
       ge0: 1
-      

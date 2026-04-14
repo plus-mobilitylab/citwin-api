@@ -8,12 +8,18 @@
 
 
 
-
 NetAScore provides a toolset and automated workflow for computing ***bikeability***, ***walkability*** and related indicators from publicly available network data sets. Currently, we provide common presets for assessing infrastructure suitability for cycling (*bikeability*) and walking (*walkability*). By editing settings files and mode profiles, additional modes or custom preferences can easily be modeled.
 
 For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
 
-Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: https://doi.org/10.5281/zenodo.7695369
+For citing NetAScore, please refer to following paper which introduces the software, its objectives, as well as the data and methods used: 
+Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., & Loidl, M. (2024). NetAScore: An open and extendible software for segment-scale bikeability and walkability. *Environment and Planning B: Urban Analytics and City Science*, 0(0). [https://doi.org/10.1177/23998083241293177]. In case you want to refer to a specific version of the software implementation, you may add the respective Zenodo reference [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
+
+Details regarding the **bikeability assessment method** as well as results of an **evaluation study** are provided in the following **scientific publication**, which is openly available via [doi.org/10.1016/j.jcmr.2024.100040](https://doi.org/10.1016/j.jcmr.2024.100040): Werner, C., van der Meer, L., Kaziyeva, D., Stutz, P., Wendel, R., & Loidl, M. (2024). Bikeability of road segments: An open, adjustable and extendible model. *Journal of Cycling and Micromobility Research*, *2*, 100040.
+
+Details on the **walkability index** together with results from a large **evaluation study** are published Open Access: [doi.org/10.3390/su17083634](https://doi.org/10.3390/su17083634): Stutz, P., Kaziyeva, D., Traun, C., Werner, C. & Loidl, M. (2025). Walkability at Street Level: An Indicator-Based Assessment Model. *Sustainability*, *17(8)*, 3634.
+
+**Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
 
 More information can be found in the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html):
 * [About NetAScore](https://plus-mobilitylab.github.io/netascore-documentation/Home.html)
