@@ -12,6 +12,8 @@ def build_graph(
         node_id_field: str = "node_id"
 ) -> nx.DiGraph:
     G = nx.DiGraph()
+    
+    include_perception = "perception_score" in edges_gdf.columns
 
     # add edges
     for _, row in edges_gdf.iterrows():
@@ -36,6 +38,11 @@ def build_graph(
             "index_bike": row.get("index_bike_tf"),
             "index_walk": row.get("index_walk_tf"),
         }
+
+        if include_perception:
+            perception_score = row.get("perception_score")
+            attrs_ft["perception_score"] = perception_score
+            attrs_tf["perception_score"] = perception_score
 
         # forward edge: u -> v
         G.add_edge(u, v, geometry=geom, **attrs_ft)

@@ -6,9 +6,11 @@ from pipeline.run import run_pipeline_access, setup_logging
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--upload-netascore", action="store_true")
+parser.add_argument("--include-perception", action="store_false")
 args = parser.parse_args()
 
 UPLOAD_NETASCORE = args.upload_netascore
+INCLUDE_PERCEPTION = args.include_percetion
 
 TEST_DATA_DIR = Path(__file__).resolve().parents[0] / "data"
 
@@ -38,6 +40,9 @@ def main():
 
     if UPLOAD_NETASCORE:
         kwargs["netascore_gpkg"] = TEST_DATA_DIR / "netascore_20251008_200432.gpkg"
+
+    if INCLUDE_PERCEPTION:
+        kwargs["netascore_gpkg"] = TEST_DATA_DIR / "streetscapes_perception.csv"
 
     run_pipeline_access(**kwargs)
 

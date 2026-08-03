@@ -50,10 +50,11 @@ All job types follow a deterministic sequence of processing steps. The names bel
 ### Accessibility (full) — `POST /jobs/access`
 
 1. **HandleDataStep**
-   - Reads your input files (clusters A/B, OD table, POIs).
+   - Reads your input files (clusters A/B, OD table, POIs, optionally Global Streetscapes perception scores).
    - Converts everything to WGS84 and picks an appropriate **UTM SRID** for metric work.
    - Builds a **buffer** around POIs (2× the travel distance threshold) and derives a **bounding box** (`bbox_str`) from it.
    - Drops clusters that are far outside this POI buffer (keeps the analysis area small).
+   - If a Global Streetscapes input file is provided: generates a single composite perception score for each street segment in the data.
 
 2. **SaveParametersStep**
    - Writes `job.json` (job_id, target_srid, bbox_str, timestamp) into the job folder (used for caching).
@@ -69,6 +70,7 @@ All job types follow a deterministic sequence of processing steps. The names bel
 
 5. **BuildGraphsStep**
    - Loads NetAScore layers and builds a directed NetworkX graph.
+   - If a Global Streetscapes input file is provided: joins perception scores into the edges data.
    - Creates two subgraphs for the chosen travel mode:
      - **Base graph**: all edges that are accessible for the mode.
      - **Quality graph**: only edges with `index_{mode} >= index_threshold` *or* `length <= length_minimum`.
@@ -85,10 +87,18 @@ All job types follow a deterministic sequence of processing steps. The names bel
 8. **EvaluatePOIsStep**
    - For each POI, runs Dijkstra on the **reversed** graphs to find all reachable residents within the distance threshold.
    - Computes for each resident:
-     - `length_base` vs. `length_quality` to the POI
+     - `index_average_base`: average NetAScore index of the shortest path to the POI on the base graph
+     - `index_average_quality`: average NetAScore index of the shortest path to the POI on the quality graph
+     - `length_base`: length of the shortest path to the POI on the base graph
+     - `length_quality`: length of the shortest path to the POI on the quality graph
      - `length_ratio = length_quality / length_base`
      - `access = (length_ratio <= detour_threshold)`
+   - If a Global Streetscapes input file is provided, also computes for each resident:
+     - `perception_average`: average perception score of the optimal path to the POI on the quality graph, with the optimal path being the path that maximizes the average perception score but does not exceed the travel time and detour thresholds.
+     - `enhanced_access = (perception_average => perception_threshold)`
    - Aggregates POI stats like reachable network length and average index values.
+   - Computes for each POI the number of residents that have potential access (access on the base graph) and actual access (access on the quality graph).
+   - If a Global Streetscapes input file is provided: computes for each POI the number of residents that have enhanced access (access on the quality graph through beautiful or lively streets).
 
 9. **ExportResultsStep**
    - Writes outputs as GeoJSON or GPKG (depending on `output_format`).
@@ -114,15 +124,24 @@ Common outputs:
 
 - `pois_output`  
   One feature per POI with summary metrics, including:
-  - `length_base`, `length_quality`, `length_ratio`: reachable network lengths
-  - `residents_base`, `residents_quality`, `residents_ratio`: number of reachable residents
-  - `index_average_base`, `index_average_quality`: average index values
+  - `length_base`, `length_quality`, `length_ratio`: total length of edges within the travel time threshold
+  - `index_average_base`, `index_average_quality`: average NetAScore index values of edges within the travel time threshold
+  - `residents_base`: number of residents with potential access, i.e. residents that can reach the POI on the base graph without exceeding the travel time threshold
+  - `residents_quality`: number of residents with actual access, i.e. residents that can reach the POI on the quality graph without exceeding the travel time and detour thresholds
+  - `residents_ratio`: number of residents with actual access vs. potential access
+  If a Global Streetscapes input file is provided, it also includes:
+  - `perception_average`: average perception scores of edges within the travel time threshold on the quality graph
+  - `residents_enhanced`: number of residents with enhanced access, i.e. residents with actual access that can reach the POI on a path with an average perception score higher than the perception threshold, without exceeding the detour threshold
+  - `residents_enhanced_ratio`: number of residents with enhanced access vs. basic access
 - `residents`  
   One feature per origin point *per POI*, including:
   - `poi_id`, `point_id`
-  - `length_base`, `length_quality`, `length_ratio`: network lengths per trip
-  - `index_average_base`, `index_average_quality`: average index values per trip
-  - `access` (boolean): whether the origin is reachable within the distance threshold on the quality graph
+  - `length_base`, `length_quality`, `length_ratio`: total length of the shortest path between origin and destination
+  - `index_average_base`, `index_average_quality`: average NetAScore index value of the shortest path between origin and destination
+  - `access` (boolean): whether the origin has actual access to the destination
+  If a Global Streetscapes input file is provided, it also includes:
+  - `perception_average`: average perception score of the optimal path between origin and destination, with the optimal path being the path on the quality graph that maximizes the average perception score but does not exceed the travel time and detour thresholds.
+  - `enhanced_access` (boolean): whether the origin has enhanced access to the destination
 
 Additional outputs:
 
@@ -152,11 +171,11 @@ Optional (depending on caching / settings):
 
 ### `POST /jobs/access`
 
-Runs the full accessibility pipeline using:
-- **origin clusters** (`od_clusters_a`)
-- **destination clusters** (`od_clusters_b`)
-- **OD table** (`od_table`) describing trips from A→B
-- **POIs** (`pois`) that define where accessibility is evaluated and also define the NetAScore area
+Runs the full accessibility pipeline, differentiating between:
+
+- **Potential access:** The number of people that can reach a POI within the travel time threshold, using the full street network without considering the quality of street design for the specified travel mode.
+- **Actual access:** The number of people that can reach a POI within the travel time threshold exclusively on streets that are sufficiently safe and comfortable, and within an acceptable detour from the shortest path on the full street network.
+- **Enhanced access (optional):** The number of people that have actual access *and* can reach a destination on a path that goes through beautiful or lively streets.
 
 ### Required file fields
 
@@ -164,10 +183,15 @@ Runs the full accessibility pipeline using:
   Origin clusters (e.g. residential clusters).
 - `od_clusters_b` (`.gpkg` or `.geojson`)  
   Destination clusters (e.g. workplace clusters).
-- `od_table` (`.csv`)  
+- `od_table` (`.csv`)
   Origin–destination table. The API reads it with `;` as delimiter.
 - `pois` (`.gpkg` or `.geojson`)  
-  Points of Interest (e.g. transport stops). The POIs are snapped to the quality graph.
+  Points of interest (e.g. transport stops) to which accessibility should be computed. The POIs are snapped to the quality graph.
+
+### Conditionally required file fields
+
+- `streetscapes` (`.csv`)
+  Global Streetscapes data export containing the six human perception scores (beautiful, boring, depressing, lively, safe, wealthy) paired to a specific OpenStreetMap way index. This is required when enhanced accessibility should be computed in addition to potential and actual accessibility.
 
 ### Required schema fields (strings)
 
@@ -191,19 +215,21 @@ These tell the API how to read your input attributes:
 All of these can be omitted to use mode-specific defaults.
 
 - `travel_time_min` (float)  
-  Travel time threshold in minutes.  
-- `travel_speed_kmh` (float)  
+  The travel time threshold (in minutes). A route that exceeds the travel time threshold does not provide accessibility to the destination.
+- `travel_speed_kmh` (float)
   Travel speed in km/h. Used to convert `travel_time_min` to a distance threshold.
 - `detour_threshold` (float)  
-  Threshold used when evaluating detours vs. baseline.
-- `index_threshold` (float)  
-  Quality threshold to build the quality subgraph (higher is stricter).  
-- `length_minimum` (float)  
-  Minimum edge length in meters to include regardless of index (lets you keep short connectors even if quality is low).
+  Maximum detour ratio for an entire route to be considered acceptable. The detour ratio compares the length of a route to the shortest possible route on the entire network. A route that exceeds the detour threshold does not provide accessibility to the destination.
+- `index_threshold` (float) 
+  Minimum NetAScore index value for an individual street segment to be considered sufficiently safe and comfortable. Only street segments with a NetAscore index value higher than or equal to this threshold are contained in the quality graph.
+- `perception_threshold` (float)  
+  Minimum average perception score of an entire route to be considered sufficiently beautiful and lively. This value is only used to compute enhanced accessibility when a Global Streetscapes input file is provided, and ignored otherwise.
+- `length_minimum` (float) 
+  Minimum length (in meters) of a street segment to be evaluated by its NetAScore index. Any street segment with a shorter length will be contained in the quality graph irrespective of its NetAScore index. This allows to preserve short connectors even if its NetAScore index is low.
 
 > **Defaults are defined in code** (see `pipeline/run.py` → `TRAVEL_MODE_DEFAULTS`):
-> - bike: time 15 min, speed 12 km/h, detour 1.5, index 0.5, length_minimum 0.0  
-> - walk: time 15 min, speed 5 km/h, detour 1.5, index 0.35, length_minimum 0.0
+> - bike: time 15 min, speed 12 km/h, detour 1.5, index 0.5, perception 0.5, length_minimum 0.0  
+> - walk: time 15 min, speed 5 km/h, detour 1.5, index 0.35, perception 0.5, length_minimum 0.0
 
 ### Optional NetAScore controls
 
@@ -253,7 +279,7 @@ Response example:
 
 ### `POST /jobs/access_simple`
 
-Like `/jobs/access`, but requires only:
+Runs a simplified accessibility pipeline. Like `/jobs/access`, but requires only:
 - `od_clusters_a` (origins)
 - `pois`
 

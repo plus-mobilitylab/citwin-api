@@ -286,6 +286,7 @@ async def create_job_access(
         od_clusters_b: UploadFile = File(..., description="Destination clusters file", examples=["a_klynger.gpkg"]),
         od_table: UploadFile = File(..., description="Origin-destination table file", examples=["Data_2023_0099_Tabel_1.csv"]),
         pois: UploadFile = File(..., description="Points of Interest (POIs) file, e.g. transport stops, determines the parameters for NetAScore", examples=["dynlayer.gpkg"]),
+        streetscapes: Optional[UploadFile] = File(None, description="Global Streetscapes perception table file; required to compute enhanced accessibility", examples=["streetscapes.csv"]),
 
         od_clusters_a_id_field: str = Form(..., description="ID field for origin clusters", examples=["klynge_id"]),
         od_clusters_a_count_field: str = Form(..., description="Count field for origin clusters", examples=["Beboere"]),
@@ -301,6 +302,7 @@ async def create_job_access(
         travel_speed_kmh: Optional[float] = Form(None, description="Travel speed in km/h; if not set, a mode-specific default is used", examples=[12.0, 5.0]),
         detour_threshold: Optional[float] = Form(None, description="Detour threshold; if not set, a mode-specific default is used", examples=[1.5]),
         index_threshold: Optional[float] = Form(None, description="Quality index threshold; if not set, a mode-specific default is used", examples=[0.5, 0.35]),
+        perception_threshold: Optional[float] = Form(None, description="Perception score threshold; if not set, a mode-specific default is used", examples=[0.5, 0.35]),
         length_minimum: Optional[float] = Form(None, description="Minimum edge length in meters to include regardless of quality index; if not set, a mode-specific default is used", examples=[0.0]),
 
         use_cached_netascore: bool = Form(True, description="Re-use a cached NetAScore file if available"),
@@ -316,6 +318,10 @@ async def create_job_access(
     check_extension(od_clusters_b, {".geojson", ".gpkg"})
     check_extension(od_table, {".csv"})
     check_extension(pois, {".geojson", ".gpkg"})
+    
+    if streetscapes:
+        check_extension(streetscapes, {".csv"})
+    
     if netascore_gpkg:
         check_extension(netascore_gpkg, {".gpkg"})
 
@@ -330,6 +336,11 @@ async def create_job_access(
 
     pois_path = job_dir / f"pois{Path(pois.filename).suffix}"
     pois_path.write_bytes(await pois.read())
+
+    streetscapes_path = None
+    if streetscapes:
+        streetscapes_path = job_dir / f"pois{Path(streetscapes.filename).suffix}"
+        streetscapes_path.write_bytes(await streetscapes.read())
 
     netascore_gpkg_path = None
     if netascore_gpkg:
@@ -348,6 +359,7 @@ async def create_job_access(
         "od_clusters_b": str(od_clusters_b_path),
         "od_table": str(od_table_path),
         "pois": str(pois_path),
+        "streetscapes": str(streetscapes_path) if streetscapes_path else None
 
         "od_clusters_a_id_field": od_clusters_a_id_field,
         "od_clusters_a_count_field": od_clusters_a_count_field,
@@ -363,6 +375,7 @@ async def create_job_access(
         "travel_speed_kmh": travel_speed_kmh,
         "detour_threshold": detour_threshold,
         "index_threshold": index_threshold,
+        "perception_threshold": perception_threshold,
         "length_minimum": length_minimum,
 
         "use_cached_netascore": use_cached_netascore,
@@ -393,6 +406,7 @@ async def create_job_access_simple(
 
         od_clusters_a: UploadFile = File(..., description="Origin clusters file", examples=["b_klynger.gpkg"]),
         pois: UploadFile = File(..., description="Points of Interest (POIs) file, e.g. transport stops, determines the parameters for NetAScore", examples=["dynlayer.gpkg"]),
+        streetscapes: Optional[UploadFile] = File(None, description="Global Streetscapes perception table file; required to compute enhanced accessibility", examples=["streetscapes.csv"]),
 
         od_clusters_a_id_field: str = Form(..., description="ID field for origin clusters", examples=["klynge_id"]),
         od_clusters_a_count_field: str = Form(..., description="Count field for origin clusters", examples=["Beboere"]),
@@ -403,6 +417,7 @@ async def create_job_access_simple(
         travel_speed_kmh: Optional[float] = Form(None, description="Travel speed in km/h; if not set, a mode-specific default is used", examples=[12.0, 5.0]),
         detour_threshold: Optional[float] = Form(None, description="Detour threshold; if not set, a mode-specific default is used", examples=[1.5]),
         index_threshold: Optional[float] = Form(None, description="Quality index threshold; if not set, a mode-specific default is used", examples=[0.5, 0.35]),
+        perception_threshold: Optional[float] = Form(None, description="Perception score threshold; if not set, a mode-specific default is used", examples=[0.5, 0.35]),
         length_minimum: Optional[float] = Form(None, description="Minimum edge length in meters to include regardless of quality index; if not set, a mode-specific default is used", examples=[0.0]),
 
         use_cached_netascore: bool = Form(True, description="Re-use a cached NetAScore file if available"),
@@ -416,6 +431,10 @@ async def create_job_access_simple(
 
     check_extension(od_clusters_a, {".geojson", ".gpkg"})
     check_extension(pois, {".geojson", ".gpkg"})
+
+    if streetscapes:
+        check_extension(streetscapes, {".csv"})
+    
     if netascore_gpkg:
         check_extension(netascore_gpkg, {".gpkg"})
 
@@ -424,6 +443,11 @@ async def create_job_access_simple(
 
     pois_path = job_dir / f"pois{Path(pois.filename).suffix}"
     pois_path.write_bytes(await pois.read())
+
+    streetscapes_path = None
+    if streetscapes:
+        streetscapes_path = job_dir / f"pois{Path(streetscapes.filename).suffix}"
+        streetscapes_path.write_bytes(await streetscapes.read())
 
     netascore_gpkg_path = None
     if netascore_gpkg:
@@ -440,6 +464,7 @@ async def create_job_access_simple(
 
         "od_clusters_a": str(od_clusters_a_path),
         "pois": str(pois_path),
+        "streetscapes": str(streetscapes_path) if streetscapes_path else None
 
         "od_clusters_a_id_field": od_clusters_a_id_field,
         "od_clusters_a_count_field": od_clusters_a_count_field,
@@ -450,6 +475,7 @@ async def create_job_access_simple(
         "travel_speed_kmh": travel_speed_kmh,
         "detour_threshold": detour_threshold,
         "index_threshold": index_threshold,
+        "perception_threshold": perception_threshold,
         "length_minimum": length_minimum,
 
         "use_cached_netascore": use_cached_netascore,

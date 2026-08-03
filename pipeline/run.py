@@ -18,7 +18,7 @@ from pipeline.steps.disaggregate_data import distribute_points_in_raster, disagg
 from pipeline.steps.evaluate_pois import evaluate_access
 from pipeline.steps.filter_trips import compute_network_distances_with_cutoff
 from pipeline.steps.generate_netascore import update_settings, run_netascore
-from pipeline.steps.handle_data import calculate_distance, ensure_wgs84, get_utm_srid, compute_bbox_str, filter_gdf
+from pipeline.steps.handle_data import generate_perception_score, calculate_distance, ensure_wgs84, get_utm_srid, compute_bbox_str, filter_gdf
 from pipeline.steps.snap_points import build_strtree, snap_with_strtree
 
 TRAVEL_MODE_DEFAULTS = {
@@ -27,6 +27,7 @@ TRAVEL_MODE_DEFAULTS = {
         "travel_speed_kmh": 12.0,
         "detour_threshold": 1.5,
         "index_threshold": 0.5,
+        "perception_threshold": 0.5,
         "length_minimum": 0.0,
     },
     "walk": {
@@ -34,6 +35,7 @@ TRAVEL_MODE_DEFAULTS = {
         "travel_speed_kmh": 5.0,
         "detour_threshold": 1.5,
         "index_threshold": 0.35,
+        "perception_threshold": 0.5,
         "length_minimum": 0.0,
     },
 }
@@ -114,8 +116,9 @@ class PipelineAccessContext:
     distance_threshold_m: float
     detour_threshold: float
     index_threshold: float
+    perception_threshold: Optional[float] = None
     length_minimum: Optional[float] = None
-
+    
     seed: Optional[int] = None
 
     use_cached_netascore: bool = False
@@ -136,6 +139,8 @@ class PipelineAccessContext:
     netascore_gpkg: Optional[Path] = None
     netascore_edges_gdf: Optional[gpd.GeoDataFrame] = None
     netascore_nodes_gdf: Optional[gpd.GeoDataFrame] = None
+
+    streetscapes_df: Optional[pd.DataFrame] = None
 
     G_base: Optional[Graph] = None
     G_quality: Optional[Graph] = None
@@ -185,13 +190,14 @@ class PipelineStep:
 # ----------------------------------------------------------------------------------------------------------------------
 
 class HandleDataStep(PipelineStep):
-    def __init__(self, od_clusters_a, od_clusters_b, od_table, pois, pois_id_field: Optional[str] = None, pois_id_list: Optional[List] = None):
+    def __init__(self, od_clusters_a, od_clusters_b, od_table, pois, pois_id_field: Optional[str] = None, pois_id_list: Optional[List] = None, streetscapes: Optional[Path] = None):
         self.od_clusters_a = od_clusters_a
         self.od_clusters_b = od_clusters_b
         self.od_table = od_table
         self.pois = pois
         self.pois_id_field = pois_id_field
         self.pois_id_list = pois_id_list
+        self.streetscapes = streetscapes
 
     def run(self, ctx):
         logger.info("– load input data")
@@ -200,10 +206,13 @@ class HandleDataStep(PipelineStep):
         ctx.od_table_df = pd.read_csv(self.od_table, delimiter=";")
         ctx.pois_gdf = ensure_wgs84(gpd.read_file(self.pois))
 
+        if self.streetscapes:
+            ctx.streetscapes_df = generate_perception_score(pd.read_csv(self.streetscapes))
+        
         if self.pois_id_field and self.pois_id_list:
             logger.info(f"- filter pois by list: {len(self.pois_id_list)}")
             ctx.pois_gdf = ctx.pois_gdf[ctx.pois_gdf[self.pois_id_field].isin(self.pois_id_list)]
-
+        
         ctx.target_srid = get_utm_srid(ctx.pois_gdf)
         logger.info(f"– target_srid: {ctx.target_srid}")
         ctx.pois_buffer_gdf = ctx.pois_gdf.to_crs(epsg=ctx.target_srid).geometry.buffer(ctx.distance_threshold_m * 2).to_crs(epsg=4326)
@@ -216,7 +225,7 @@ class HandleDataStep(PipelineStep):
 
 
 class HandleDataSimpleStep(PipelineStep):
-    def __init__(self, od_clusters_a, pois, pois_id_field: Optional[str] = None, pois_id_list: Optional[List] = None):
+    def __init__(self, od_clusters_a, pois, pois_id_field: Optional[str] = None, pois_id_list: Optional[List] = None, streetscapes: Optional[Path] = None):
         self.od_clusters_a = od_clusters_a
         self.pois = pois
         self.pois_id_field = pois_id_field
@@ -226,6 +235,9 @@ class HandleDataSimpleStep(PipelineStep):
         logger.info("– load input data")
         ctx.od_clusters_a_gdf = ensure_wgs84(gpd.read_file(self.od_clusters_a))
         ctx.pois_gdf = ensure_wgs84(gpd.read_file(self.pois))
+
+        if self.streetscapes:
+            ctx.streetscapes_df = generate_perception_score(pd.read_csv(self.streetscapes))
 
         if self.pois_id_field and self.pois_id_list:
             logger.info(f"- filter pois by list: {len(self.pois_id_list)}")
@@ -315,6 +327,10 @@ class BuildGraphsStep(PipelineStep):
         ctx.netascore_nodes_gdf = ctx.netascore_nodes_gdf.reset_index().rename(columns={'index': 'node_id'})
         ctx.netascore_nodes_gdf['node_id'] = ctx.netascore_nodes_gdf['node_id'] + 1
 
+        if ctx.streetscapes_df:
+            logger.info("- join perception scores")
+            ctx.netascore_edges_gdf = netascore_edges_gdf.merge(ctx.streetscapes_df, how="left", on="osmid")
+
         logger.info("- build graph")
         G = build_graph(ctx.netascore_edges_gdf, ctx.netascore_nodes_gdf)
         G = keep_largest_component(G)
@@ -367,11 +383,18 @@ class EvaluatePOIsStep(PipelineStep):
         self.pois_id_field = pois_id_field
 
     def run(self, ctx):
-        ctx.edges_base_gdf, ctx.edges_quality_gdf, ctx.routes_base_gdf, ctx.routes_quality_gdf, ctx.pois_gdf, ctx.residents_gdf = evaluate_access(
-            ctx.netascore_edges_gdf, ctx.pois_gdf, ctx.od_points_a_gdf, self.pois_id_field,
-            ctx.G_base, ctx.G_quality, ctx.travel_mode,
-            ctx.distance_threshold_m, ctx.detour_threshold
-        )
+        if ctx.streetscapes_df:
+            ctx.edges_base_gdf, ctx.edges_quality_gdf, ctx.routes_base_gdf, ctx.routes_quality_gdf, ctx.pois_gdf, ctx.residents_gdf = evaluate_access(
+                ctx.netascore_edges_gdf, ctx.pois_gdf, ctx.od_points_a_gdf, self.pois_id_field,
+                ctx.G_base, ctx.G_quality, ctx.travel_mode,
+                ctx.distance_threshold_m, ctx.detour_threshold, ctx.perception_threshold, compute_enhanced = True
+            )
+        else:
+            ctx.edges_base_gdf, ctx.edges_quality_gdf, ctx.routes_base_gdf, ctx.routes_quality_gdf, ctx.pois_gdf, ctx.residents_gdf = evaluate_access(
+                ctx.netascore_edges_gdf, ctx.pois_gdf, ctx.od_points_a_gdf, self.pois_id_field,
+                ctx.G_base, ctx.G_quality, ctx.travel_mode,
+                ctx.distance_threshold_m, ctx.detour_threshold
+            )
 
 
 class ExportResultsStep(PipelineStep):
@@ -507,6 +530,7 @@ def run_pipeline_access(
         od_clusters_b: Path,
         od_table: Path,
         pois: Path,
+        streetscapes: Optional[Path] = None
 
         od_clusters_a_id_field: str,
         od_clusters_a_count_field: str,
@@ -522,6 +546,7 @@ def run_pipeline_access(
         travel_speed_kmh: Optional[float] = None,
         detour_threshold: Optional[float] = None,
         index_threshold: Optional[float] = None,
+        perception_threshold: Optional[float] = None,
         length_minimum: Optional[float] = None,
 
         use_cached_netascore: bool = True,
@@ -550,6 +575,9 @@ def run_pipeline_access(
     if index_threshold is None:
         index_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["index_threshold"]
 
+    if perception_threshold is None:
+        perception_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["perception_threshold"]
+
     if length_minimum is None:
         length_minimum = TRAVEL_MODE_DEFAULTS[travel_mode]["length_minimum"]
 
@@ -577,6 +605,7 @@ def run_pipeline_access(
         distance_threshold_m=distance_threshold_m,
         detour_threshold=detour_threshold,
         index_threshold=index_threshold,
+        perception_threshold=perception_threshold,
         length_minimum=length_minimum,
 
         seed=seed,
@@ -592,7 +621,7 @@ def run_pipeline_access(
     )
 
     steps = [
-        HandleDataStep(od_clusters_a, od_clusters_b, od_table, pois, pois_id_field, pois_id_list),
+        HandleDataStep(od_clusters_a, od_clusters_b, od_table, pois, pois_id_field, pois_id_list, streetscapes),
         SaveParametersStep(),
         DisaggregateDataStep(fields),
         GenerateNetascoreStep(),
@@ -617,6 +646,7 @@ def run_pipeline_access(
 def run_pipeline_access_simple(
         od_clusters_a: Path,
         pois: Path,
+        streetscapes: Optional[Path] = None
 
         od_clusters_a_id_field: str,
         od_clusters_a_count_field: str,
@@ -627,6 +657,7 @@ def run_pipeline_access_simple(
         travel_speed_kmh: Optional[float] = None,
         detour_threshold: Optional[float] = None,
         index_threshold: Optional[float] = None,
+        perception_threshold: Optional[float] = None,
         length_minimum: Optional[float] = None,
 
         use_cached_netascore: bool = True,
@@ -655,6 +686,9 @@ def run_pipeline_access_simple(
     if index_threshold is None:
         index_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["index_threshold"]
 
+    if perception_threshold is None:
+        perception_threshold = TRAVEL_MODE_DEFAULTS[travel_mode]["perception_threshold"]
+
     if length_minimum is None:
         length_minimum = TRAVEL_MODE_DEFAULTS[travel_mode]["length_minimum"]
 
@@ -682,6 +716,7 @@ def run_pipeline_access_simple(
         distance_threshold_m=distance_threshold_m,
         detour_threshold=detour_threshold,
         index_threshold=index_threshold,
+        perception_threshold=perception_threshold,
         length_minimum=length_minimum,
 
         seed=seed,
@@ -693,7 +728,7 @@ def run_pipeline_access_simple(
     fields = (od_clusters_a_id_field, od_clusters_a_count_field)
 
     steps = [
-        HandleDataSimpleStep(od_clusters_a, pois, pois_id_field, pois_id_list),
+        HandleDataSimpleStep(od_clusters_a, pois, pois_id_field, pois_id_list, streetscapes),
         SaveParametersStep(),
         DisaggregateDataSimpleStep(fields),
         GenerateNetascoreStep(),

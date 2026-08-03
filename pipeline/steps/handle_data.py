@@ -1,5 +1,14 @@
+import pandas as pd
 import geopandas as gpd
 
+def generate_perception_score(df: pd.DataFrame) -> pd.DataFrame:
+    out = pd.DataFrame({"osmid": df["osmid"]})
+    for x in ["Safe", "Lively", "Beautiful", "Wealthy", "Boring", "Depressing"]:
+        out[x.lower() + "_score"] = df[x] / 10
+    out["perception_score"] = out[["beauty_score", "liveliness_score"]].max(axis=1)
+    out = out.sort_values("perception_score", ascending = False).drop_duplicates(["osmid"]).reset_index(drop = True)
+    # TODO: Do not just select maximum score per OSM way, but use metadata such as image quality or direction.
+    return out
 
 def calculate_distance(speed_kmh, time_min) -> int:
     time_h = time_min / 60

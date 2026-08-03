@@ -10,15 +10,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--base-url", default="http://localhost:8000")
 parser.add_argument("--upload-netascore", action="store_true")
 parser.add_argument("--no-download", action="store_true")
+parser.add_argument("--include-perception", action="store_false")
 args = parser.parse_args()
 
 BASE_URL = args.base_url
 UPLOAD_NETASCORE = args.upload_netascore
 DOWNLOAD_FILES = not args.no_download
+INCLUDE_PERCEPTION = args.include_percetion
 
 print(f"– base url: {BASE_URL}")
 print(f"– upload netascore: {UPLOAD_NETASCORE}")
 print(f"– download files: {DOWNLOAD_FILES}")
+print(f"– include perception: {INCLUDE_PERCEPTION}")
 
 DATA_DIR = Path(__file__).parents[0] / "data"
 DOWNLOADS_DIR = Path(__file__).parents[0] / "downloads"
@@ -39,6 +42,9 @@ def main():
 
     if UPLOAD_NETASCORE:
         files["netascore_gpkg"] = open(DATA_DIR / "netascore_20251008_200432.gpkg", "rb")
+
+    if INCLUDE_PERCEPTION:
+        files["streetscapes"] = open(DATA_DIR / "streetscapes_perception.csv", "rb")
 
     data = {
         "od_clusters_a_id_field": "klynge_id",

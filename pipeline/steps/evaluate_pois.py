@@ -77,10 +77,13 @@ def evaluate_access(
         mode: str,
         distance_threshold: float,
         detour_threshold: float,
-        generate_routes: bool = False,
+        perception_threshold: float | None = None,
+        compute_enhanced: bool = False,
+        generate_routes: bool = False
 ):
     index_field = {"bike": "index_bike", "walk": "index_walk"}[mode]
-
+    perception_field = "perception_score"
+    
     residents = []
     pois = []
     edges_base = []
@@ -102,6 +105,8 @@ def evaluate_access(
         residents_in_proximity = od_points_a_gdf[od_points_a_gdf["node_id"].isin(lengths_base.keys())].copy()
 
         residents_quality = 0
+        residents_enhanced = 0
+        
         routes_base_poi = []
         routes_quality_poi = []
 
@@ -126,6 +131,12 @@ def evaluate_access(
                     "geometry": resident_geom,
                 })
                 residents_quality += 1
+                if compute_enhanced:
+                    residents.append({
+                        "perception": None,
+                        "enhanced_access": True,
+                    })
+                    residents_enhanced += 1
                 continue
 
             # reconstruct geometry and index of the used path
@@ -146,7 +157,7 @@ def evaluate_access(
                 if generate_routes and path_geom_base is not None:
                     routes_base_poi.append({
                         "point_id": resident_point_id,
-                        "poi_id": poi_id,
+                        "poi_id",: poi_id,
                         "from_node": resident_node_id,
                         "to_node": poi_node_id,
                         "length": round(length_base, 2) if length_base is not None else None,
@@ -172,7 +183,7 @@ def evaluate_access(
                         "index_average": path_index_average_quality,
                         "geometry": path_geom_quality,
                     })
-
+                    
             # determine whether bikeable access is acceptable (detour threshold)
             access = False
             edges_length_ratio = None
@@ -181,7 +192,7 @@ def evaluate_access(
                 if edges_length_ratio <= detour_threshold:
                     access = True
                     residents_quality += 1
-
+            
             residents.append({
                 "point_id": resident_point_id,
                 "poi_id": poi_id,
@@ -195,6 +206,27 @@ def evaluate_access(
                 "access": access,
                 "geometry": resident_geom,
             })
+
+            # determine enhanced access
+            if compute_enhanced:
+                if perception_threshold is None:
+                    raise ValueError("Perception threshold cannot be None when computing enhanced accessibility")
+                path_perception_average = None
+                enhanced_access = False
+                if access:
+                    cutoff = min(length_base * detour_threshold, distance_threshold)
+                    all_paths = nx.all_simple_paths(G_quality, resident_node_id, poi_node_id, cutoff = cutoff)
+                    perception_averages = [compute_path_index_average(G_quality, x, perception_field) for x in all_paths]
+                    path_perception_average = min((x for x in perception_averages if x is not None), default = None)
+                    if path_perception_average is None:
+                        enhanced_access = None
+                    else if path_perception_average => perception_threshold:
+                        enhanced_access = True
+                        residents_enhanced += 1
+                residents.append({
+                    "perception_average": path_perception_average,
+                    "enhanced_access": enhanced_access,
+                })
 
         # collect routes for this poi
         if generate_routes:
@@ -236,6 +268,15 @@ def evaluate_access(
             "geometry": poi_geom,
         })
 
+        if compute_enhanced:
+            edges_perception_average = compute_edges_index_average(G_quality_sub, edges_quality_poi, perception_field)
+            residents_enhanced_ratio = residents_enhanced / residents_quality if residents_quality > 0 else 0.0
+            pois.append({
+                "perception_average": edges_perception_average,
+                "residents_enhanced": residents_enhanced,
+                "residents_enhanced_ratio": residents_enhanced_ratio,
+            })
+    
     edges_base = edges_gdf.merge(pd.concat(edges_base).drop_duplicates(), on="edge_id")
     edges_quality = edges_gdf.merge(pd.concat(edges_quality).drop_duplicates(), on="edge_id")
 
