@@ -339,7 +339,7 @@ async def create_job_access(
 
     streetscapes_path = None
     if streetscapes:
-        streetscapes_path = job_dir / f"pois{Path(streetscapes.filename).suffix}"
+        streetscapes_path = job_dir / f"streetscapes{Path(streetscapes.filename).suffix}"
         streetscapes_path.write_bytes(await streetscapes.read())
 
     netascore_gpkg_path = None
@@ -446,7 +446,7 @@ async def create_job_access_simple(
 
     streetscapes_path = None
     if streetscapes:
-        streetscapes_path = job_dir / f"pois{Path(streetscapes.filename).suffix}"
+        streetscapes_path = job_dir / f"streetscapes{Path(streetscapes.filename).suffix}"
         streetscapes_path.write_bytes(await streetscapes.read())
 
     netascore_gpkg_path = None

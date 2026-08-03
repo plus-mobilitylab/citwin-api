@@ -157,7 +157,7 @@ def evaluate_access(
                 if generate_routes and path_geom_base is not None:
                     routes_base_poi.append({
                         "point_id": resident_point_id,
-                        "poi_id",: poi_id,
+                        "poi_id": poi_id,
                         "from_node": resident_node_id,
                         "to_node": poi_node_id,
                         "length": round(length_base, 2) if length_base is not None else None,
