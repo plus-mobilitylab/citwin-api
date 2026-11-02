@@ -11,6 +11,3 @@
 /#/
 /jobs/
 /tests/data/
-
-*.md
-!README.md
