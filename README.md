@@ -5,9 +5,19 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Status](https://img.shields.io/badge/Status-Active-success.svg)
 
-> Developed as part of the **CITWIN** research project, this Python-based API implements a computational pipeline for the **accessibility analysis** of **public transport stops**. The framework combines **origin–destination data** with NetAScore **bikeability** and **walkability** indices to assess and quantify active mobility accessibility in urban environments.
+This Python-based API implements a computational workflow for the analysis of active transport accessibility in urban environments. The workflow extends traditional time-based or distance-based accessibility analyses by incorporating estimations of perceived safety, comfort, and enjoyment.
 
-## What the API does
+The following pages describe the software in more detail:
+
+- For a summary of the theoretical underpinning, see **[THEORY.md](docs/THEORY.md)**
+- For explanations on using the API (endpoints, parameters, examples), see **[USER.md](docs/USER.md)**
+- For explanations on running the API on a server (Docker, environment variables, deployment), see **[DEVELOPER.md](docs/DEVELOPER.md)**
+
+Note that the enjoyment extension is still experimental and only integrated into the development branch [perception](https://github.com/plus-mobilitylab/citwin-api/tree/perception). The main branch can be considered stable.
+
+## Quick overview
+
+### What the API does
 
 - **Generates or re-uses a NetAScore network dataset** for a bounding box inferred from your input POIs.
 - **Builds travel-mode graphs** (walk/bike) and a *quality-filtered* subgraph using a configurable index threshold.
@@ -17,7 +27,7 @@
 
 The API is implemented with **FastAPI** and runs the heavy work asynchronously via an **in-process job queue**. You submit a job, poll its status (or watch a WebSocket), and then download the resulting files.
 
-## What you can do with it
+### How you can interact with it
 
 The API exposes three main job types:
 
@@ -36,10 +46,11 @@ All accessibility jobs support:
 - optional tuning parameters (travel time, speed, detour threshold, quality index threshold, etc.)
 - output format: `GeoJSON` or `GPKG`
 
-## Where to start
+## Licensing
 
-- **Using the API (endpoints, parameters, examples):** see **[USER.md](docs/USER.md)**
-- **Running the API on a server (Docker, environment variables, deployment):** see **[DEVELOPER.md](docs/DEVELOPER.md)**
+This software is licensed under the **[MIT License](LICENSE)**
+  > © 2026 University of Salzburg, Department of Geoinformatics
 
 ## Funding
-This work was supported through the Driving Urban Transitions (DUT) partnership by the European Commission and Österreichische Forschungsförderungsgesellschaft (FFG) under Grant FO999905451.
+
+This work was supported through the Driving Urban Transitions (DUT) partnership by the European Commission and Österreichische Forschungsförderungsgesellschaft (FFG) under Grant **FO999905451**, project name **CITWIN**.
